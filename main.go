@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/Der1an0/handlers"
+	"github.com/Der1an0/pkg/api"
 	"github.com/Der1an0/pkg/db"
 )
 
@@ -25,6 +26,7 @@ func main() {
 	defer db.DB.Close() // Закрываем БД при завершении работы программы
 	port := handlers.GetPort()
 	http.HandleFunc("/api/nextdate", handlers.NextDateHandler)
+	http.HandleFunc("/api/task", api.TaskHandler)
 	webDir := "./web"
 
 	http.Handle("/", handlers.Static(webDir))

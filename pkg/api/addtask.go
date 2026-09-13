@@ -9,6 +9,7 @@ import (
 	"github.com/Der1an0/pkg/db"
 )
 
+// Вспомогательная функция для отправки JSON-ответов
 func writeJson(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(status)
@@ -21,6 +22,7 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		addTaskHandler(w, r)
 	default:
+		// Возвращаем ошибку строго в JSON, а не через http.Error (который шлет обычный текст)
 		writeJson(w, http.StatusMethodNotAllowed, map[string]string{"error": "Метод не поддерживается"})
 	}
 }
@@ -42,7 +44,7 @@ func checkDate(task *db.Tasks) error {
 		return errors.New("некорректный формат даты")
 	}
 
-	// Сбрасываем время для корректного сравнения чистых дат
+	// Сбрасываем время у текущей даты для точного сравнения дней
 	nowZero := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	// 3. Если дата в прошлом
@@ -82,6 +84,7 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Проверяем и корректируем дату задачи
 	if err := checkDate(&task); err != nil {
+		// Любая ошибка валидации даты должна уходить как JSON {"error": "..."}
 		writeJson(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -93,6 +96,6 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Возвращаем успешный ID
+	// Возвращаем успешный ID в JSON-формате, как ждут тесты
 	writeJson(w, http.StatusOK, map[string]int64{"id": id})
 }
