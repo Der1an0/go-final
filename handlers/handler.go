@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Der1an0/tasks"
+	"github.com/Der1an0/pkg/db"
 )
 
 // Static возвращает http.Handler для раздачи файлов из указанной директории
@@ -49,7 +49,7 @@ func NextDateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Вызываем ранее написанную логику
-	nextDate, err := tasks.NextDate(now, dateStr, repeat)
+	nextDate, err := db.NextDate(now, dateStr, repeat)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

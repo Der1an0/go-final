@@ -11,6 +11,15 @@ import (
 // Глобальная переменная для хранения идентификатора открытой базы данных
 var DB *sql.DB
 
+// Структура задачи для JSON
+type Tasks struct {
+	ID      string `json:"id"`
+	Date    string `json:"date"`
+	Title   string `json:"title"`
+	Comment string `json:"comment"`
+	Repeat  string `json:"repeat"`
+}
+
 // SQL-схема для создания таблицы и индекса
 const schema = `
 CREATE TABLE scheduler (
@@ -60,4 +69,15 @@ func Init(dbFile string) error {
 	}
 
 	return nil
+}
+
+// Запись в таблицу
+func AddTask(task *Tasks) (int64, error) {
+	var id int64
+	query := `INSERT INTO scheduler (date, title, comment, repeat) VALUES (?, ?, ?, ?)`
+	res, err := DB.Exec(query, task.Date, task.Title, task.Comment, task.Repeat)
+	if err == nil {
+		id, err = res.LastInsertId()
+	}
+	return id, err
 }
