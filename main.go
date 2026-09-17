@@ -27,6 +27,7 @@ func main() {
 	port := handlers.GetPort()
 	http.HandleFunc("/api/nextdate", handlers.NextDateHandler)
 	http.HandleFunc("/api/task", api.TaskHandler)
+	http.HandleFunc("/api/tasks", api.TasksHandler)
 	webDir := "./web"
 
 	http.Handle("/", handlers.Static(webDir))

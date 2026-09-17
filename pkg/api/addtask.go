@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -27,34 +28,72 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Вспомогательная функция проверки и нормализации дат
-func checkDate(task *db.Tasks) error {
-	now := time.Now()
-	todayStr := now.Format("20060102")
+type TasksResp struct {
+	Tasks []*db.Task `json:"tasks"`
+}
 
-	// 1. Если дата пустая — берем сегодня
+type ErrorResp struct {
+	Error string `json:"error"`
+}
+
+func TasksHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(ErrorResp{Error: "Method not allowed"})
+		return
+	}
+
+	// Вытаскиваем параметр search из URL
+	searchParam := r.URL.Query().Get("search")
+	log.Printf("TasksHandler: search=%q", searchParam)
+
+	// Передаем ЕГО вторым аргументом!
+	tasks, err := db.GetTasks(50, searchParam)
+
+	if err != nil {
+		log.Printf("GetTasks error: %v", err)
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResp{Error: err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(TasksResp{
+		Tasks: tasks,
+	})
+	log.Printf("GetTasks returned %d tasks", len(tasks))
+}
+
+// Вспомогательная функция проверки и нормализации дат
+func checkDate(task *db.Task) error {
+	now := time.Now()
+	// Сбрасываем время у текущей даты, чтобы сравнивать только чистые дни (00:00:00)
+	nowZero := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayStr := nowZero.Format("20060102")
+
+	// 1. Если дата пустая — берем сегодняшний день
 	if task.Date == "" {
 		task.Date = todayStr
 		return nil
 	}
 
 	// 2. Проверяем валидность формата 20060102
-	t, err := time.Parse("20060102", task.Date)
+	t, err := time.ParseInLocation("20060102", task.Date, time.Local)
 	if err != nil {
 		return errors.New("некорректный формат даты")
 	}
 
-	// Сбрасываем время у текущей даты для точного сравнения дней
-	nowZero := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-
-	// 3. Если дата в прошлом
+	// 3. Если дата в прошлом (строго до сегодняшнего дня 00:00:00)
 	if t.Before(nowZero) {
 		if len(task.Repeat) == 0 {
-			// Если правила повторения нет — берем сегодняшнее число
+			// Если правила повторения нет — ставим сегодняшний день
 			task.Date = todayStr
 		} else {
-			// Иначе вычисляем следующую дату через планировщик
-			next, err := db.NextDate(now, task.Date, task.Repeat)
+			// Если правило есть — вычисляем СЛЕДУЮЩУЮ дату относительно NOW
+			next, err := db.NextDate(nowZero, task.Date, task.Repeat)
 			if err != nil {
 				return err
 			}
@@ -67,7 +106,7 @@ func checkDate(task *db.Tasks) error {
 
 // Логика обработки POST-запроса
 func addTaskHandler(w http.ResponseWriter, r *http.Request) {
-	var task db.Tasks
+	var task db.Task
 
 	// Читаем тело JSON
 	err := json.NewDecoder(r.Body).Decode(&task)

@@ -12,7 +12,7 @@ import (
 var DB *sql.DB
 
 // Структура задачи для JSON
-type Tasks struct {
+type Task struct {
 	ID      string `json:"id"`
 	Date    string `json:"date"`
 	Title   string `json:"title"`
@@ -72,7 +72,7 @@ func Init(dbFile string) error {
 }
 
 // Запись в таблицу
-func AddTask(task *Tasks) (int64, error) {
+func AddTask(task *Task) (int64, error) {
 	var id int64
 	query := `INSERT INTO scheduler (date, title, comment, repeat) VALUES (?, ?, ?, ?)`
 	res, err := DB.Exec(query, task.Date, task.Title, task.Comment, task.Repeat)

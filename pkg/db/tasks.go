@@ -1,8 +1,10 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,6 +12,59 @@ import (
 )
 
 const dateLayout = "20060102"
+
+// GetTasks возвращает список задач с возможностью фильтрации по строке поиска search
+func GetTasks(limit int, search string) ([]*Task, error) {
+	var cnt int
+	DB.QueryRow("SELECT COUNT(*) FROM scheduler").Scan(&cnt)
+	log.Printf("GetTasks: в БД всего %d задач, search=%q", cnt, search)
+	search = strings.TrimSpace(search)
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
+
+	// Попытка распарсить как дату в формате ДД.ММ.ГГГГ
+	if t, dateErr := time.ParseInLocation("02.01.2006", search, time.Local); search != "" && dateErr == nil {
+		dateStr := t.Format("20060102")
+		query := `SELECT id, date, title, comment, repeat FROM scheduler WHERE date = ? ORDER BY date LIMIT ?`
+		rows, err = DB.Query(query, dateStr, limit)
+	} else {
+		query := `SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date LIMIT ?`
+		rows, err = DB.Query(query, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	needle := strings.ToLower(search)
+	tasks := make([]*Task, 0)
+	for rows.Next() {
+		var t Task
+		var idInt int64
+		if err := rows.Scan(&idInt, &t.Date, &t.Title, &t.Comment, &t.Repeat); err != nil {
+			return nil, err
+		}
+		// Фильтр по подстроке в Go — работает и для кириллицы
+		if search != "" && needle != "" {
+			// Если это была дата — фильтр уже применён в SQL
+			if _, dateErr := time.ParseInLocation("02.01.2006", search, time.Local); dateErr != nil {
+				if !strings.Contains(strings.ToLower(t.Title), needle) &&
+					!strings.Contains(strings.ToLower(t.Comment), needle) {
+					continue
+				}
+			}
+		}
+		t.ID = strconv.FormatInt(idInt, 10)
+		tasks = append(tasks, &t)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
 
 // NextDate вычисляет следующую дату задачи в соответствии с правилом repeat.
 func NextDate(now time.Time, dstart string, repeat string) (string, error) {
