@@ -27,6 +27,8 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 		getTaskHandler(w, r) // Добавили обработку GET
 	case http.MethodPut:
 		updateTaskHandler(w, r) // Добавили обработку PUT
+	case http.MethodDelete:
+		deleteTaskHandler(w, r) // Добавили обработку DELETE
 	default:
 		writeJson(w, http.StatusMethodNotAllowed, map[string]string{"error": "Метод не поддерживается"})
 	}
@@ -201,4 +203,88 @@ func updateTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 	// В случае успешного изменения возвращаем пустой JSON объект {}
 	writeJson(w, http.StatusOK, map[string]string{})
+}
+
+// deleteTaskHandler обрабатывает DELETE /api/task?id=...
+func deleteTaskHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		writeJson(w, http.StatusBadRequest, map[string]string{"error": "Не указан идентификатор"})
+		return
+	}
+
+	err := db.DeleteTask(id)
+	if err != nil {
+		writeJson(w, http.StatusNotFound, map[string]string{"error": "Задача не найдена"})
+		return
+	}
+
+	writeJson(w, http.StatusOK, map[string]string{})
+}
+
+// TaskDoneHandler обрабатывает POST /api/task/done?id=...
+func TaskDoneHandler(w http.ResponseWriter, r *http.Request) {
+	// Разрешаем только POST запросы
+	if r.Method != http.MethodPost {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Не указан идентификатор"})
+		return
+	}
+
+	// 1. Получаем параметры задачи по её id
+	task, err := db.GetTask(id)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Задача не найдена"})
+		return
+	}
+
+	// 2. Если правило для повторения отсутствует, удаляем задачу
+	if task.Repeat == "" {
+		err = db.DeleteTask(id)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{})
+		return
+	}
+
+	// 3. Если задача периодическая, рассчитываем следующую дату
+	now := time.Now()
+	nextDate, err := db.NextDate(now, task.Date, task.Repeat)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Обновляем дату у задачи в базе данных
+	err = db.UpdateTaskDate(id, nextDate)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{})
 }

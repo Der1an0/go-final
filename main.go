@@ -28,6 +28,7 @@ func main() {
 	http.HandleFunc("/api/nextdate", handlers.NextDateHandler)
 	http.HandleFunc("/api/task", api.TaskHandler)
 	http.HandleFunc("/api/tasks", api.TasksHandler)
+	http.HandleFunc("/api/task/done", api.TaskDoneHandler)
 	webDir := "./web"
 
 	http.Handle("/", handlers.Static(webDir))

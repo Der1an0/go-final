@@ -270,3 +270,51 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		return "", fmt.Errorf("unsupported repeat rule type: %s", ruleType)
 	}
 }
+
+// DeleteTask удаляет задачу из таблицы по её ID
+func DeleteTask(id string) error {
+	idInt, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return fmt.Errorf("incorrect id for deleting task")
+	}
+
+	query := `DELETE FROM scheduler WHERE id = ?`
+	res, err := DB.Exec(query, idInt)
+	if err != nil {
+		return err
+	}
+
+	count, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("task not found")
+	}
+
+	return nil
+}
+
+// UpdateTaskDate обновляет только колонку date у задачи
+func UpdateTaskDate(id string, nextDate string) error {
+	idInt, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return fmt.Errorf("incorrect id for updating task date")
+	}
+
+	query := `UPDATE scheduler SET date = ? WHERE id = ?`
+	res, err := DB.Exec(query, nextDate, idInt)
+	if err != nil {
+		return err
+	}
+
+	count, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("task not found")
+	}
+
+	return nil
+}
