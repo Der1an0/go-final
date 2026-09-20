@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	_ "modernc.org/sqlite" // Импортируем драйвер для регистрации в sql.Open
 )
@@ -80,4 +82,52 @@ func AddTask(task *Task) (int64, error) {
 		id, err = res.LastInsertId()
 	}
 	return id, err
+}
+
+// GetTask возвращает одну задачу по её текстовому идентификатору ID
+func GetTask(id string) (*Task, error) {
+	// Преобразуем строковый id в число для SQLite
+	idInt, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("некорректный формат id")
+	}
+
+	query := `SELECT id, date, title, comment, repeat FROM scheduler WHERE id = ?`
+
+	var t Task
+	var dbID int64
+
+	// Используем QueryRow для получения строго одной записи
+	err = DB.QueryRow(query, idInt).Scan(&dbID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
+	if err != nil {
+		return nil, err // Если запись не найдена, вернет sql.ErrNoRows
+	}
+
+	t.ID = strconv.FormatInt(dbID, 10)
+	return &t, nil
+}
+
+// UpdateTask обновляет все поля существующей задачи по её ID
+func UpdateTask(task *Task) error {
+	idInt, err := strconv.ParseInt(task.ID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("incorrect id for updating task")
+	}
+
+	query := `UPDATE scheduler SET date = ?, title = ?, comment = ?, repeat = ? WHERE id = ?`
+	res, err := DB.Exec(query, task.Date, task.Title, task.Comment, task.Repeat, idInt)
+	if err != nil {
+		return err
+	}
+
+	// Проверяем, изменилась ли хоть одна запись в БД
+	count, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("incorrect id for updating task")
+	}
+
+	return nil
 }

@@ -18,12 +18,16 @@ func writeJson(w http.ResponseWriter, status int, data any) {
 }
 
 // Главный распределитель запросов /api/task по HTTP-методам
+// Главный распределитель запросов /api/task по HTTP-методам
 func TaskHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		addTaskHandler(w, r)
+	case http.MethodGet:
+		getTaskHandler(w, r) // Добавили обработку GET
+	case http.MethodPut:
+		updateTaskHandler(w, r) // Добавили обработку PUT
 	default:
-		// Возвращаем ошибку строго в JSON, а не через http.Error (который шлет обычный текст)
 		writeJson(w, http.StatusMethodNotAllowed, map[string]string{"error": "Метод не поддерживается"})
 	}
 }
@@ -137,4 +141,64 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Возвращаем успешный ID в JSON-формате, как ждут тесты
 	writeJson(w, http.StatusOK, map[string]int64{"id": id})
+}
+
+// getTaskHandler обрабатывает GET /api/task?id=...
+func getTaskHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		writeJson(w, http.StatusBadRequest, map[string]string{"error": "Не указан идентификатор"})
+		return
+	}
+
+	// Запрашиваем задачу из базы данных
+	task, err := db.GetTask(id)
+	if err != nil {
+		// Тесты Практикума ожидают понятную ошибку, если задача отсутствует в базе
+		writeJson(w, http.StatusNotFound, map[string]string{"error": "Задача не найдена"})
+		return
+	}
+
+	// Возвращаем JSON-объект задачи
+	writeJson(w, http.StatusOK, task)
+}
+
+// updateTaskHandler обрабатывает PUT /api/task
+func updateTaskHandler(w http.ResponseWriter, r *http.Request) {
+	var task db.Task
+
+	// Десериализуем входящий JSON изменения задачи
+	err := json.NewDecoder(r.Body).Decode(&task)
+	if err != nil {
+		writeJson(w, http.StatusBadRequest, map[string]string{"error": "Ошибка десериализации JSON"})
+		return
+	}
+
+	// Валидация: ID обязателен для изменения
+	if task.ID == "" {
+		writeJson(w, http.StatusBadRequest, map[string]string{"error": "Не указан идентификатор"})
+		return
+	}
+
+	// Валидация: заголовок обязателен
+	if task.Title == "" {
+		writeJson(w, http.StatusBadRequest, map[string]string{"error": "Не указан заголовок задачи"})
+		return
+	}
+
+	// Проверяем и корректируем дату задачи (используем ту же функцию, что и для POST)
+	if err := checkDate(&task); err != nil {
+		writeJson(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Отправляем изменения в базу данных
+	err = db.UpdateTask(&task)
+	if err != nil {
+		writeJson(w, http.StatusNotFound, map[string]string{"error": "Задача не найдена"})
+		return
+	}
+
+	// В случае успешного изменения возвращаем пустой JSON объект {}
+	writeJson(w, http.StatusOK, map[string]string{})
 }
