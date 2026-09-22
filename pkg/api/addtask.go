@@ -18,17 +18,16 @@ func writeJson(w http.ResponseWriter, status int, data any) {
 }
 
 // Главный распределитель запросов /api/task по HTTP-методам
-// Главный распределитель запросов /api/task по HTTP-методам
 func TaskHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		addTaskHandler(w, r)
+		addTaskHandler(w, r) // Обработка добавления задачи
 	case http.MethodGet:
-		getTaskHandler(w, r) // Добавили обработку GET
+		getTaskHandler(w, r) //  Обработка получения
 	case http.MethodPut:
-		updateTaskHandler(w, r) // Добавили обработку PUT
+		updateTaskHandler(w, r) // Обработка изменения
 	case http.MethodDelete:
-		deleteTaskHandler(w, r) // Добавили обработку DELETE
+		deleteTaskHandler(w, r) // Обработка удаления
 	default:
 		writeJson(w, http.StatusMethodNotAllowed, map[string]string{"error": "Метод не поддерживается"})
 	}
